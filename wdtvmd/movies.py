@@ -12,10 +12,7 @@ def guess_name(filename):
     return base
 
 
-def write_movie_xml(filename, movie):
-    base, ext = os.path.splitext(filename)
-    target = '%s.%s' % (base, 'xml')
-
+def write_movie_xml(target, movie):
     tree = ET.Element('details')
     elements = {
         'id': movie.id,
@@ -41,18 +38,27 @@ def write_movie_xml(filename, movie):
         doc.write(output, encoding='utf-8', xml_declaration=True)
 
 
-def write_poster(filename, movie):
-    base, ext = os.path.splitext(filename)
-    target = '%s.metathumb' % base
-    if not os.path.exists(target) and movie.poster:
+def write_poster(target, movie):
+    if movie.poster:
         urllib.urlretrieve(movie.poster.geturl(), filename=target)
 
 
-def lookup_movie_file(filename):
+def lookup_movie_file(filename, force=False):
     name = guess_name(filename)
 
+    base, ext = os.path.splitext(filename)
+    target_xml = '%s.%s' % (base, 'xml')
+    target_thumb = '%s.%s' % (base, 'metathumb')
+
+    if not force and (os.path.exists(target_xml) and
+                      os.path.exists(target_thumb)):
+        return
+
     result = tmdb3.searchMovie(name)
-    if len(result) != 1:
+    if len(result) == 0:
+        print 'Not found: %s' % name
+        return
+    elif len(result) > 1:
         if result[0].title != name:
             print '  Guessed name: %s' % name
             print '  Ambiguous result (%i): %s' % (
@@ -62,5 +68,5 @@ def lookup_movie_file(filename):
 
     movie = result[0]
     print 'Processing %s' % movie.title
-    write_poster(filename, movie)
-    write_movie_xml(filename, movie)
+    write_poster(target_thumb, movie)
+    write_movie_xml(target_xml, movie)

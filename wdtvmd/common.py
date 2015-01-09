@@ -62,5 +62,5 @@ def handle_recursive(filename, handler):
         try:
             handler(filename)
         except Exception, e:
-            errors.append(e)
+            errors.append((filename, e))
     return errors

@@ -46,10 +46,7 @@ def guess_series_name(filename):
     return mid
 
 
-def write_tv_xml(filename, series, season, episode):
-    base, ext = os.path.splitext(filename)
-    target = '%s.%s' % (base, 'xml')
-
+def write_tv_xml(target, series, season, episode):
     tree = ET.Element('details')
     elements = {
         'id': episode.id,
@@ -78,10 +75,8 @@ def write_tv_xml(filename, series, season, episode):
         doc.write(output, encoding='utf-8', xml_declaration=True)
 
 
-def write_thumb(filename, episode):
-    base, ext = os.path.splitext(filename)
-    target = '%s.%s' % (base, 'metathumb')
-    if not os.path.exists(target) and episode.still:
+def write_thumb(target, episode):
+    if episode.still:
         urllib.urlretrieve(episode.still.geturl(), filename=target)
 
 
@@ -92,12 +87,23 @@ def write_season_poster(filename, season, episode):
         urllib.urlretrieve(season.poster.geturl(), filename=target)
 
 
-def lookup_tv_file(filename):
+def lookup_tv_file(filename, force=False):
     series_name = guess_series_name(filename)
     season_num, episode_num = guess_episode(filename)
 
+    base, ext = os.path.splitext(filename)
+    target_xml = '%s.%s' % (base, 'xml')
+    target_thumb = '%s.%s' % (base, 'metathumb')
+
+    if not force and (os.path.exists(target_xml) and
+                      os.path.exists(target_thumb)):
+        return
+
     result = tmdb3.searchSeries(series_name)
-    if len(result) != 1:
+    if len(result) == 0:
+        print 'Not found: %s' % series_name
+        return
+    elif len(result) > 1:
         if result[0].name != series_name:
             print '  Guessed name `%s`'  % series_name
             print '  Ambiguous result (%i): %s' % (
@@ -111,7 +117,7 @@ def lookup_tv_file(filename):
     print 'Processing: %s: S%02i E%02i (%s)' % (
         series_name, season_num, episode_num, episode.name)
     write_season_poster(filename, season, episode)
-    write_thumb(filename, episode)
-    write_tv_xml(filename, series, season, episode)
+    write_thumb(target_thumb, episode)
+    write_tv_xml(target_xml, series, season, episode)
 
 

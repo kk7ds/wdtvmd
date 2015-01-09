@@ -16,7 +16,7 @@ class StopProcessing(Exception):
 def tv_handler(options, filename):
     filename = os.path.abspath(filename)
     try:
-        tv.lookup_tv_file(filename)
+        tv.lookup_tv_file(filename, force=options.force)
     except common.AmbiguousResultError as e:
         print 'Ambiguous result for %s' % filename
         if options.stop:
@@ -28,7 +28,7 @@ def tv_handler(options, filename):
 
 
 def movie_handler(options, filename):
-    movies.lookup_movie_file(filename)
+    movies.lookup_movie_file(filename, force=options.force)
 
 
 def main():
@@ -48,6 +48,9 @@ def main():
                       action='store_true', default=False)
     parser.add_option('-s', '--stop',
                       help='Stop on warning/error',
+                      action='store_true', default=False)
+    parser.add_option('-f', '--force',
+                      help='Force updating even if metadata exists',
                       action='store_true', default=False)
     (options, args) = parser.parse_args()
 
@@ -69,7 +72,8 @@ def main():
             if options.recursive:
                 errors = common.handle_recursive(filename, handler)
                 if errors:
-                    print os.linesep.join(errors)
+                    print 'Errors:'
+                    print os.linesep.join(['%s: %s' % (f, e) for f, e in errors])
             elif not os.path.isfile(filename):
                 print '%s is not a file' % filename
             else:
