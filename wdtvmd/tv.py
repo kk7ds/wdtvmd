@@ -1,50 +1,13 @@
-import glob
 import os
 import re
-import sys
 from xml.etree import ElementTree as ET
 import urllib
-import ConfigParser
 
 import tmdb3
 
-
-class AppContext(object):
-    def __init__(self, config=None, apikey=None):
-        if config is None:
-            config = os.path.expanduser('~/.wdtv')
-        self.config = ConfigParser.ConfigParser()
-        self.config.read(config)
-
-        if not self.config.has_section('api'):
-            self.config.add_section('api')
-
-        if apikey is not None:
-            self.config.set('api', 'key', apikey)
-
-        if self.config.has_option('api', 'key'):
-            tmdb3.set_key(self.config.get('api', 'key'))
-        else:
-            raise NoAPIKey('An API key is required')
-
-        tmdb3.set_cache(filename='tmdb3.cache')
-        with file(config, 'w') as f:
-            self.config.write(f)
+from wdtvmd import common
 
 
-class FilenameFormatError(Exception):
-    pass
-
-
-class AmbiguousResultError(Exception):
-    pass
-
-
-class NoAPIKey(Exception):
-    pass
-
-
-file_regex = re.compile('.*\.(mkv|mp4|m4v|avi|mpg|mp2)')
 combined_regex = re.compile('.*[Ss]([0-9]{1,2})[Ee]([0-9]{1,2}).*')
 season_regex = re.compile('.*[Ss]eason ([0-9]{1,2}).*')
 numbers_regex = re.compile('.*([0-9]{2}).*')
@@ -88,24 +51,31 @@ def write_tv_xml(filename, series, season, episode):
     target = '%s.%s' % (base, 'xml')
 
     tree = ET.Element('details')
-    ET.SubElement(tree, 'id').text = str(episode.id)
-    ET.SubElement(tree, 'title').text = '%02i: %s' % (episode.episode_number,
-                                                      episode.name)
-    ET.SubElement(tree, 'season_number').text = str(season.season_number)
-    ET.SubElement(tree, 'episode_number').text = str(episode.episode_number)
-    ET.SubElement(tree, 'overview').text = episode.overview
-    ET.SubElement(tree, 'series_name').text = series.name
-    ET.SubElement(tree, 'episode_name').text = episode.name
-    ET.SubElement(tree, 'firstaired').text = '%i-%02i-%02i' % (
-        episode.air_date.year, episode.air_date.month, episode.air_date.day)
+    elements = {
+        'id': episode.id,
+        'title': '%02i: %s' % (episode.episode_number,
+                               episode.name),
+        'season_number': season.season_number,
+        'episode_number': episode.episode_number,
+        'overview': episode.overview,
+        'series_name': series.name,
+        'episode_name': episode.name,
+        'firstaired': '%i-%02i-%02i' % (
+            episode.air_date.year, episode.air_date.month,
+            episode.air_date.day),
+        'genre': series.genres[0].name,
+        'actor': ' / '.join([foo.name for foo in episode.cast]),
+    }
 
-    ET.SubElement(tree, 'genre').text = series.genres[0].name
-    ET.SubElement(tree, 'actor').text = '/'.join([foo.name for foo in episode.cast])
+    for k,v in elements.items():
+        ET.SubElement(tree, k).text = unicode(v)
+
     for bd in series.backdrops:
         ET.SubElement(tree, 'backdrop').text = bd.geturl()
 
     with file(target, 'w') as output:
-        output.write(ET.tostring(tree))
+        doc = ET.ElementTree(tree)
+        doc.write(output, encoding='utf-8', xml_declaration=True)
 
 
 def write_thumb(filename, episode):
@@ -133,7 +103,7 @@ def lookup_tv_file(filename):
             print '  Ambiguous result (%i): %s' % (
                 len(result),
                 ','.join([series.name for series in result]))
-            raise AmbiguousResultError()
+            raise common.AmbiguousResultError()
 
     series = result[0]
     season = series.seasons[season_num]
@@ -145,16 +115,3 @@ def lookup_tv_file(filename):
     write_tv_xml(filename, series, season, episode)
 
 
-def handle_recursive(filename, handler):
-    errors = []
-    if os.path.isdir(filename):
-        for subfile in glob.glob(os.path.join(filename, '*')):
-            errors += handle_recursive(subfile, handler)
-    elif os.path.isfile(filename):
-        if not file_regex.match(filename):
-            return []
-        try:
-            handler(filename)
-        except Exception, e:
-            errors.append(e)
-    return errors

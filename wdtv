@@ -4,7 +4,9 @@ import optparse
 import os
 import sys
 
-import wdtv
+from wdtvmd import common
+from wdtvmd import movies
+from wdtvmd import tv
 
 
 class StopProcessing(Exception):
@@ -14,20 +16,19 @@ class StopProcessing(Exception):
 def tv_handler(options, filename):
     filename = os.path.abspath(filename)
     try:
-        wdtv.lookup_tv_file(filename)
-    except wdtv.AmbiguousResultError as e:
+        tv.lookup_tv_file(filename)
+    except common.AmbiguousResultError as e:
         print 'Ambiguous result for %s' % filename
         if options.stop:
             raise StopProcessing()
-    except wdtv.FilenameFormatError as e:
+    except common.FilenameFormatError as e:
         print 'Unable to parse season/episode from %s' % filename
         if options.stop:
             raise StopProcessing()
 
 
 def movie_handler(options, filename):
-    print 'Movies are not supported yet'
-    raise StopProcessing()
+    movies.lookup_movie_file(filename)
 
 
 def main():
@@ -50,7 +51,7 @@ def main():
                       action='store_true', default=False)
     (options, args) = parser.parse_args()
 
-    context = wdtv.AppContext(apikey=options.key)
+    context = common.AppContext(apikey=options.key)
 
     if options.tv:
         handler = lambda f: tv_handler(options, f)
@@ -66,7 +67,7 @@ def main():
     for filename in args:
         try:
             if options.recursive:
-                errors = wdtv.handle_recursive(filename, handler)
+                errors = common.handle_recursive(filename, handler)
                 if errors:
                     print os.linesep.join(errors)
             elif not os.path.isfile(filename):
