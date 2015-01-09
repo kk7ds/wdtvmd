@@ -30,7 +30,8 @@ def guess_episode(filename):
         episode = int(episode_match.group(1))
 
     if not episode or not season:
-        raise FilenameFormatError('Unable to detect season/episode info')
+        raise common.FilenameFormatError(
+            'Unable to detect season/episode info')
 
     return season, episode
 
