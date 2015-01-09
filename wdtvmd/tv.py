@@ -65,9 +65,13 @@ def write_tv_xml(target, series, season, episode):
         'firstaired': '%i-%02i-%02i' % (
             episode.air_date.year, episode.air_date.month,
             episode.air_date.day),
-        'genre': series.genres[0].name,
         'actor': ' / '.join([foo.name for foo in episode.cast]),
     }
+
+    try:
+        elements['genre'] = series.genres[0].name
+    except IndexError:
+        pass
 
     for k,v in elements.items():
         ET.SubElement(tree, k).text = unicode(v)
