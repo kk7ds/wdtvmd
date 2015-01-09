@@ -1,10 +1,22 @@
 import os
 import urllib
+import re
 from xml.etree import ElementTree as ET
 
 import tmdb3
 
 from wdtvmd import common
+
+
+year_regex = re.compile('.*([12][0-9]{3}).*')
+
+
+def guess_year(filename):
+    year_match = year_regex.match(os.path.basename(filename))
+    if year_match:
+        return int(year_match.group(1))
+    else:
+        return None
 
 
 def guess_name(filename):
@@ -45,6 +57,9 @@ def write_poster(target, movie):
 
 def lookup_movie_file(filename, force=False):
     name = guess_name(filename)
+    year = guess_year(filename)
+    if year:
+        name = name.replace('(%s)' % year, '').strip()
 
     base, ext = os.path.splitext(filename)
     target_xml = '%s.%s' % (base, 'xml')
@@ -54,13 +69,13 @@ def lookup_movie_file(filename, force=False):
                       os.path.exists(target_thumb)):
         return
 
-    result = tmdb3.searchMovie(name)
+    result = tmdb3.searchMovie(name, year=year)
     if len(result) == 0:
         print 'Not found: %s' % name
         return
     elif len(result) > 1:
         if result[0].title != name:
-            print '  Guessed name: %s' % name
+            print '  Guessed name: %s' % repr(name)
             print '  Ambiguous result (%i): %s' % (
                 len(result),
                 ','.join([m.title for m in result]))
