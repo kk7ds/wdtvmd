@@ -28,7 +28,13 @@ def tv_handler(options, filename):
 
 
 def movie_handler(options, filename):
-    movies.lookup_movie_file(filename, force=options.force)
+    filename = os.path.abspath(filename)
+    try:
+        movies.lookup_movie_file(filename, force=options.force)
+    except common.AmbiguousResultError as e:
+        print 'Ambiguous result for %s' % filename
+        if options.stop:
+            raise StopProcessing()
 
 
 def main():
