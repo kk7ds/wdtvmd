@@ -1,9 +1,11 @@
+import collections
 import os
 import re
 from xml.etree import ElementTree as ET
 import urllib
 
 import tmdb3
+import tvdb_api
 
 from wdtvmd import common
 
@@ -51,49 +53,84 @@ def guess_series_name(filename):
     return mid
 
 
-def write_tv_xml(target, series, season, episode):
+def write_tv_xml(target, series, season_num, episode, extra):
     tree = ET.Element('details')
     elements = {
-        'id': episode.id,
-        'title': '%02i: %s' % (episode.episode_number,
-                               episode.name),
-        'season_number': season.season_number,
-        'episode_number': episode.episode_number,
-        'overview': episode.overview,
-        'series_name': series.name,
-        'episode_name': episode.name,
-        'firstaired': '%i-%02i-%02i' % (
-            episode.air_date.year, episode.air_date.month,
-            episode.air_date.day),
-        'actor': ' / '.join([foo.name for foo in episode.cast]),
+        'id': episode['id'],
+        'title': '%02i: %s' % (int(episode['episodenumber']),
+                               episode['episodename']),
+        'season_number': season_num,
+        'episode_number': episode['episodenumber'],
+        'overview': episode['overview'],
+        'series_name': series['seriesname'],
+        'episode_name': episode['episodename'],
+        'firstaired': episode['firstaired'],
     }
 
-    try:
-        elements['genre'] = series.genres[0].name
-    except IndexError:
-        pass
+    if extra.episode:
+        elements['actor'] = ' / '.join(
+            [foo.name for foo in extra.episode.cast]),
+
+    if extra.series and extra.series.genres:
+        elements['genre'] = extra.series.genres[0].name
 
     for k,v in elements.items():
         ET.SubElement(tree, k).text = unicode(v)
 
-    for bd in series.backdrops:
-        ET.SubElement(tree, 'backdrop').text = bd.geturl()
+    if extra.series and extra.series.backdrops:
+        for bd in extra.series.backdrops:
+            ET.SubElement(tree, 'backdrop').text = bd.geturl()
 
     with file(target, 'w') as output:
         doc = ET.ElementTree(tree)
         doc.write(output, encoding='utf-8', xml_declaration=True)
 
 
-def write_thumb(target, episode):
-    if episode.still:
-        urllib.urlretrieve(episode.still.geturl(), filename=target)
+def _season_banner(season_num, show):
+    try:
+        for sb in show['_banners']['season']['season']:
+            if sb['season'] == str(season_num):
+                return sb['_bannerpath']
+    except KeyError:
+        pass
 
 
-def write_season_poster(filename, season, episode):
+def write_thumb(target, season_num, show, extra):
+    if extra.episode and extra.episode.still:
+        thumb = extra.episode.still.geturl()
+    else:
+        thumb = _season_banner(season_num, show)
+    if thumb:
+        urllib.urlretrieve(thumb, filename=target)
+
+
+def write_season_poster(filename, season_num, show, extra):
     base = os.path.dirname(filename)
     target = os.path.join(base, 'folder.jpg')
-    if not os.path.exists(target) and season.poster:
-        urllib.urlretrieve(season.poster.geturl(), filename=target)
+
+    if extra.season and extra.season.poster:
+        poster = extra.season.poster.geturl()
+    else:
+        poster = _season_banner(season_num, show)
+    if not os.path.exists(target) and poster:
+        urllib.urlretrieve(poster, filename=target)
+
+
+Extra = collections.namedtuple('ExtraInfo',
+                               ['series', 'season', 'episode'])
+
+
+def lookup_extra_info(series_name, season_num, episode_num):
+    series = tmdb3.searchSeries(series_name)
+    if len(series) == 0:
+        return Extra(None, None, None)
+    elif len(series) > 1 and series[0].name != series_name:
+        return Extra(None, None, None)
+
+    series = series[0]
+    season = series.seasons[season_num]
+    episode = season.episodes[episode_num]
+    return Extra(series, season, episode)
 
 
 def lookup_tv_file(filename, force=False):
@@ -108,25 +145,32 @@ def lookup_tv_file(filename, force=False):
                       os.path.exists(target_thumb)):
         return
 
-    result = tmdb3.searchSeries(series_name)
+    tvdb = tvdb_api.Tvdb(cache=True, actors=True, banners=True)
+
+    result = tvdb.search(series_name)
     if len(result) == 0:
         print 'Not found: %s' % series_name
         return
     elif len(result) > 1:
-        if result[0].name != series_name:
+        if result[0]['seriesname'] != series_name:
             print '  Guessed name `%s`'  % series_name
             print '  Ambiguous result (%i): %s' % (
                 len(result),
-                ','.join([series.name for series in result]))
+                ','.join([s['seriesname'] for s in result]))
             raise common.AmbiguousResultError()
 
-    series = result[0]
-    season = series.seasons[season_num]
-    episode = season.episodes[episode_num]
-    print 'Processing: %s: S%02i E%02i (%s)' % (
-        series_name, season_num, episode_num, episode.name)
-    write_season_poster(filename, season, episode)
-    write_thumb(target_thumb, episode)
-    write_tv_xml(target_xml, series, season, episode)
+    show = result[0]
+    series = tvdb[result[0]['seriesname']]
+    season = series[season_num]
+    episode = season[episode_num]
+
+    extra = lookup_extra_info(series_name, season_num, episode_num)
+
+    print 'Processing: %s: S%02i E%02i (%s) %s' % (
+        series_name, season_num, episode_num, episode['episodename'],
+        extra.series and '+E' or '')
+    write_season_poster(filename, season_num, show, extra)
+    write_thumb(target_thumb, season_num, show, extra)
+    write_tv_xml(target_xml, series, season_num, episode, extra)
 
 

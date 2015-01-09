@@ -9,6 +9,7 @@ Requirements
 
 * python
 * tmdb3
+* tvdb_api
 
 Overview
 --------
