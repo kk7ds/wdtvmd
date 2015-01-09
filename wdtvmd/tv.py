@@ -11,6 +11,7 @@ from wdtvmd import common
 combined_regex = re.compile('.*[Ss]([0-9]{1,2})[Ee]([0-9]{1,2}).*')
 season_regex = re.compile('.*[Ss]eason ([0-9]{1,2}).*')
 numbers_regex = re.compile('.*([0-9]{2}).*')
+episode_regex = re.compile('.*[Ee]pisode ([0-9])+.*')
 
 
 def guess_episode(filename):
@@ -25,9 +26,12 @@ def guess_episode(filename):
         season = int(season_match.group(1))
 
     base = os.path.basename(filename)
-    episode_match = numbers_regex.match(base)
+    episode_match = episode_regex.match(base)
     if episode_match:
         episode = int(episode_match.group(1))
+    numbers_match = numbers_regex.match(base)
+    if not episode and numbers_match:
+        episode = int(numbers_match.group(1))
 
     if not episode or not season:
         raise common.FilenameFormatError(
