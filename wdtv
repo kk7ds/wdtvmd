@@ -1,0 +1,80 @@
+#!/usr/bin/env python
+
+import optparse
+import os
+import sys
+
+import wdtv
+
+
+class StopProcessing(Exception):
+    pass
+
+
+def tv_handler(options, filename):
+    filename = os.path.abspath(filename)
+    try:
+        wdtv.lookup_tv_file(filename)
+    except wdtv.AmbiguousResultError as e:
+        print 'Ambiguous result for %s' % filename
+        if options.stop:
+            raise StopProcessing()
+    except wdtv.FilenameFormatError as e:
+        print 'Unable to parse season/episode from %s' % filename
+        if options.stop:
+            raise StopProcessing()
+
+
+def movie_handler(options, filename):
+    print 'Movies are not supported yet'
+    raise StopProcessing()
+
+
+def main():
+    parser = optparse.OptionParser()
+    parser.add_option('-k', '--key', help='API Key')
+    parser.add_option('-r', '--recursive',
+                      help='Process arguments recursively',
+                      action='store_true', default=False)
+    parser.add_option('-t', '--tv',
+                      help='Process TV files',
+                      action='store_true', default=False)
+    parser.add_option('-m', '--movies',
+                      help='Process movie files',
+                      action='store_true', default=False)
+    parser.add_option('-i', '--interactive',
+                      help='Interactively prompt on warning/error',
+                      action='store_true', default=False)
+    parser.add_option('-s', '--stop',
+                      help='Stop on warning/error',
+                      action='store_true', default=False)
+    (options, args) = parser.parse_args()
+
+    context = wdtv.AppContext(apikey=options.key)
+
+    if options.tv:
+        handler = lambda f: tv_handler(options, f)
+    elif options.movies:
+        handler = lambda f: movie_handler(options, f)
+    else:
+        handler = None
+
+    if not handler:
+        print 'ERROR: Either --tv or --movies is required'
+        sys.exit(1)
+
+    for filename in args:
+        try:
+            if options.recursive:
+                errors = wdtv.handle_recursive(filename, handler)
+                if errors:
+                    print os.linesep.join(errors)
+            elif not os.path.isfile(filename):
+                print '%s is not a file' % filename
+            else:
+                handler(filename)
+        except StopProcessing:
+            print 'Aborted.'
+
+if __name__ == '__main__':
+    main()
