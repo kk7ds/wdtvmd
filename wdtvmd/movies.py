@@ -75,11 +75,9 @@ def lookup_movie_file(filename, force=False):
         return
     elif len(result) > 1:
         if result[0].title != name:
-            print '  Guessed name: %s' % repr(name)
-            print '  Ambiguous result (%i): %s' % (
-                len(result),
-                ','.join([m.title for m in result]))
-            raise common.AmbiguousResultError()
+            raise common.AmbiguousResultError(
+                name,
+                [m.title for m in result])
 
     movie = result[0]
     print 'Processing %s' % movie.title

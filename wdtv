@@ -13,13 +13,26 @@ class StopProcessing(Exception):
     pass
 
 
-def tv_handler(options, filename):
+def choose(filename, choices):
+    print 'Multiple options matched for %s' % filename
+    while True:
+        for i, choice in enumerate(choices):
+            print '%-3i: %s' % (i + 1, choice)
+        c = raw_input('Which? > ')
+        try:
+            return int(c) - 1
+        except ValueError:
+            print 'Invalid Choice'
+
+def tv_handler(options, filename, hint=None):
     filename = os.path.abspath(filename)
     try:
-        tv.lookup_tv_file(filename, force=options.force)
+        tv.lookup_tv_file(filename, force=options.force, hint=hint)
     except common.AmbiguousResultError as e:
-        print 'Ambiguous result for %s' % filename
-        if options.stop:
+        if options.interactive and not hint:
+            choice = choose(filename, e.choices)
+            tv_handler(options, filename, hint=e.choices[choice])
+        elif options.stop:
             raise StopProcessing()
     except common.FilenameFormatError as e:
         print 'Unable to parse season/episode from %s' % filename
@@ -32,8 +45,10 @@ def movie_handler(options, filename):
     try:
         movies.lookup_movie_file(filename, force=options.force)
     except common.AmbiguousResultError as e:
-        print 'Ambiguous result for %s' % filename
-        if options.stop:
+        if options.interactive and not hint:
+            choice = choose(filename, e.choices)
+            movie_handler(options, filename, hint=e.choices[choice])
+        elif options.stop:
             raise StopProcessing()
 
 

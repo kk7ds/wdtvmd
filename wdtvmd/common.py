@@ -20,7 +20,10 @@ class FilenameFormatError(Exception):
 
 class AmbiguousResultError(Exception):
     """More than one result was found for the search."""
-    pass
+    def __init__(self, detected, choices):
+        super(AmbiguousResultError, self).__init__()
+        self.detected = detected
+        self.choices = choices
 
 
 class NoAPIKey(Exception):

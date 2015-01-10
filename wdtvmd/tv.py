@@ -133,7 +133,9 @@ def lookup_extra_info(series_name, season_num, episode_num):
     return Extra(series, season, episode)
 
 
-def lookup_tv_file(filename, force=False):
+hint_cache = {}
+
+def lookup_tv_file(filename, force=False, hint=None):
     series_name = guess_series_name(filename)
     season_num, episode_num = guess_episode(filename)
 
@@ -145,19 +147,25 @@ def lookup_tv_file(filename, force=False):
                       os.path.exists(target_thumb)):
         return
 
-    tvdb = tvdb_api.Tvdb(cache=True, actors=True, banners=True)
+    if hint:
+        hint_cache[series_name] = hint
+    elif series_name in hint_cache:
+        hint = hint_cache[series_name]
 
-    result = tvdb.search(series_name)
+    tvdb = tvdb_api.Tvdb(cache=True, actors=True, banners=True,
+                         select_first=hint is not None)
+
+    result = tvdb.search(hint or series_name)
     if len(result) == 0:
         print 'Not found: %s' % series_name
         return
+    elif hint:
+        if result[0]['seriesname'] != hint:
+            raise Exception('Internal error: hint didn\'t work')
     elif len(result) > 1:
-        if result[0]['seriesname'] != series_name:
-            print '  Guessed name `%s`'  % series_name
-            print '  Ambiguous result (%i): %s' % (
-                len(result),
-                ','.join([s['seriesname'] for s in result]))
-            raise common.AmbiguousResultError()
+        raise common.AmbiguousResultError(
+            series_name,
+            [s['seriesname'] for s in result])
 
     show = result[0]
     series = tvdb[result[0]['seriesname']]
