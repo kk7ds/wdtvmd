@@ -55,7 +55,7 @@ def write_poster(target, movie):
         urllib.urlretrieve(movie.poster.geturl(), filename=target)
 
 
-def lookup_movie_file(filename, force=False):
+def lookup_movie_file(filename, force=False, hint=None):
     name = guess_name(filename)
     year = guess_year(filename)
     if year:
@@ -74,7 +74,9 @@ def lookup_movie_file(filename, force=False):
         print 'Not found: %s' % name
         return
     elif len(result) > 1:
-        if result[0].title != name:
+        if hint:
+            result = [m for m in result if m.title == hint]
+        elif result[0].title != name:
             raise common.AmbiguousResultError(
                 name,
                 [m.title for m in result])

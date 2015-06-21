@@ -40,10 +40,10 @@ def tv_handler(options, filename, hint=None):
             raise StopProcessing()
 
 
-def movie_handler(options, filename):
+def movie_handler(options, filename, hint=None):
     filename = os.path.abspath(filename)
     try:
-        movies.lookup_movie_file(filename, force=options.force)
+        movies.lookup_movie_file(filename, force=options.force, hint=hint)
     except common.AmbiguousResultError as e:
         if options.interactive and not hint:
             choice = choose(filename, e.choices)
