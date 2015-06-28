@@ -1,3 +1,4 @@
+import datetime
 import os
 import urllib
 import re
@@ -8,13 +9,13 @@ import tmdb3
 from wdtvmd import common
 
 
-year_regex = re.compile('.*([12][0-9]{3}).*')
+year_regex = re.compile('.+(\()([12][0-9]{3})(\)).*')
 
 
 def guess_year(filename):
     year_match = year_regex.match(os.path.basename(filename))
     if year_match:
-        return int(year_match.group(1))
+        return int(year_match.group(2))
     else:
         return None
 
@@ -55,11 +56,34 @@ def write_poster(target, movie):
         urllib.urlretrieve(movie.poster.geturl(), filename=target)
 
 
+def process_hint(hint):
+    year_match = year_regex.match(hint)
+    if year_match:
+        year = year_match.group(2)
+        name = hint.replace(''.join(year_match.groups()), '')
+        return name, year
+    else:
+        return hint, None
+
+
+def get_options(results):
+    options = []
+    for result in results:
+        if isinstance(result.releasedate, datetime.date):
+            options.append('%s (%s)' % (result.title, result.releasedate.year))
+        else:
+            options.append(result.title)
+    return options
+
+
 def lookup_movie_file(filename, force=False, hint=None):
-    name = guess_name(filename)
-    year = guess_year(filename)
-    if year:
-        name = name.replace('(%s)' % year, '').strip()
+    if hint:
+        name, year = process_hint(hint)
+    else:
+        name = guess_name(filename)
+        year = guess_year(filename)
+        if year:
+            name = name.replace('(%s)' % year, '').strip()
 
     base, ext = os.path.splitext(filename)
     target_xml = '%s.%s' % (base, 'xml')
@@ -78,8 +102,7 @@ def lookup_movie_file(filename, force=False, hint=None):
             result = [m for m in result if m.title == hint]
         elif result[0].title != name:
             raise common.AmbiguousResultError(
-                name,
-                [m.title for m in result])
+                name, get_options(result))
 
     movie = result[0]
     print 'Processing %s' % movie.title
